@@ -3,7 +3,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from app.db import 夹具目录, 连接
-from app.services import 入轨, 分桶, 下发, 回读, 命运, 贯验, 目录
+from app.services import 入轨, 分桶, 下发, 回读, 命运, 贯验, 目录, 截止
 
 路由 = APIRouter(prefix="/api")
 
@@ -25,6 +25,8 @@ class 下发请求(BaseModel):
     票号: str = ""
     版本键: str
     桶键: str
+    回读截止: str = ""
+    边缘名册: list = Field(default_factory=list)
     说明: str = ""
 
 
@@ -44,6 +46,17 @@ class 回滚请求(BaseModel):
 
 class 失效请求(BaseModel):
     版本键: str
+    说明: str = ""
+
+
+class 延期请求(BaseModel):
+    票号: str
+    延期截止: str
+    说明: str = ""
+
+
+class 晋升请求(BaseModel):
+    票号: str
     说明: str = ""
 
 
@@ -116,13 +129,23 @@ def 列分桶():
 def 列下发(状态: str = ""):
     conn = 连接()
     try:
+        基 = """SELECT 下发票.*,
+                 (SELECT MAX(延期截止) FROM 回读延期 WHERE 回读延期.票号=下发票.票号) AS 延期截止
+               FROM 下发票"""
         if 状态:
-            rows = conn.execute(
-                "SELECT * FROM 下发票 WHERE 状态=? ORDER BY 下发时 DESC", (状态,)
-            )
+            rows = conn.execute(基 + " WHERE 状态=? ORDER BY 下发时 DESC", (状态,))
         else:
-            rows = conn.execute("SELECT * FROM 下发票 ORDER BY 下发时 DESC")
-        return [dict(r) for r in rows]
+            rows = conn.execute(基 + " ORDER BY 下发时 DESC")
+        out = []
+        for r in rows:
+            d = dict(r)
+            d["延期截止"] = d["延期截止"] or ""
+            try:
+                d["边缘名册"] = json.loads(d["边缘名册"] or "[]")
+            except Exception:
+                pass
+            out.append(d)
+        return out
     finally:
         conn.close()
 
@@ -201,6 +224,33 @@ def 做失效(体: 失效请求):
     return 命运.失效版本(体.model_dump())
 
 
+@路由.post("/截止扫描")
+def 做截止扫描():
+    return 截止.跑扫描({})
+
+
+@路由.post("/回读延期")
+def 做延期(体: 延期请求):
+    return 截止.写延期(体.model_dump())
+
+
+@路由.get("/回读延期")
+def 列延期(票号: str = ""):
+    return 截止.列延期(票号)
+
+
+@路由.get("/截止核证")
+def 做核证(票号: str = ""):
+    if not 票号:
+        raise HTTPException(400, "缺票号")
+    return 截止.核证票(票号)
+
+
+@路由.post("/晋升")
+def 做晋升(体: 晋升请求):
+    return 截止.晋升票(体.model_dump())
+
+
 @路由.post("/装载/夹具")
 def 装夹具(名: str = "入轨样例"):
     路径 = 夹具目录 / f"{名}.json"
@@ -219,6 +269,8 @@ def 装夹具(名: str = "入轨样例"):
         return 回读.装回读夹具(体)
     if 类型 == "回滚":
         return 命运.回滚票(体)
+    if 类型 == "截止演练":
+        return 截止.装截止夹具(体)
     raise HTTPException(400, f"未知夹具类型:{类型}")
 
 

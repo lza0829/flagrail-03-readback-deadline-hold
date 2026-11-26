@@ -36,6 +36,33 @@ def 跑贯验() -> dict:
                 (r["票号"],),
             ).fetchone():
                 问题.append(f"回滚无命运:{r['票号']}")
+        # 假已下发可升：已过有效截止仍挂着已下发（截止扫描应已收口或物化延期）
+        现在 = 此刻()
+        for r in conn.execute(
+            "SELECT 票号, 有效截止 FROM 下发票 WHERE 状态='已下发' AND 有效截止!=''"
+        ):
+            if r["有效截止"] < 现在:
+                问题.append(f"假已下发可升:{r['票号']}")
+        # 超时收口票必须同票有命运条（扫描不得半截）
+        for r in conn.execute("SELECT 票号 FROM 下发票 WHERE 状态='超时收口'"):
+            if not conn.execute(
+                "SELECT 1 FROM 命运账 WHERE 对象类型='下发票' AND 对象键=? AND 命运='超时收口'",
+                (r["票号"],),
+            ).fetchone():
+                问题.append(f"收口无命运:{r['票号']}")
+        # 已晋升票应有命运条
+        for r in conn.execute("SELECT 票号 FROM 下发票 WHERE 状态='已晋升'"):
+            if not conn.execute(
+                "SELECT 1 FROM 命运账 WHERE 对象类型='下发票' AND 对象键=? AND 命运='晋升'",
+                (r["票号"],),
+            ).fetchone():
+                问题.append(f"晋升无命运:{r['票号']}")
+        # 延期实体不得悬空
+        for r in conn.execute("SELECT 编号, 票号 FROM 回读延期"):
+            if not conn.execute(
+                "SELECT 1 FROM 下发票 WHERE 票号=?", (r["票号"],)
+            ).fetchone():
+                问题.append(f"悬空延期:{r['编号']}")
 
         通过 = 1 if not 问题 else 0
         说明 = "齐" if 通过 else "; ".join(问题)

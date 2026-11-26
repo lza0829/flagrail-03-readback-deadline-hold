@@ -1,5 +1,5 @@
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from app.db import 连接
 from fastapi import HTTPException
@@ -7,6 +7,14 @@ from fastapi import HTTPException
 
 def 此刻() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _默认截止(conn) -> str:
+    row = conn.execute("SELECT 值 FROM 站规 WHERE 键='回读截止秒'").fetchone()
+    秒 = int(row["值"]) if row else 86400
+    return (datetime.now(timezone.utc) + timedelta(seconds=秒)).strftime(
+        "%Y-%m-%dT%H:%M:%SZ"
+    )
 
 
 def 下一票(体: dict) -> dict:
@@ -27,19 +35,30 @@ def 下一票(体: dict) -> dict:
             raise HTTPException(400, "分桶开关键与版本不一致")
         已 = conn.execute("SELECT * FROM 下发票 WHERE 票号=?", (票号,)).fetchone()
         if 已 and 已["状态"] == "已下发":
-            return {"票号": 票号, "状态": "已下发", "幂等": True}
+            return {"票号": 票号, "状态": "已下发", "幂等": True, "回读截止": 已["回读截止"]}
+        # 回读计划同票：截止与边缘名册随票落；未给则按站规默认秒数
+        回读截止 = 体.get("回读截止") or _默认截止(conn)
+        名册 = 体.get("边缘名册") or []
+        if isinstance(名册, str):
+            名册 = [名册]
         conn.execute(
-            """INSERT INTO 下发票(票号, 开关键, 版本键, 桶键, 状态, 下发时, 世代, 说明)
-               VALUES (?,?,?,?,?,?,?,?)
+            """INSERT INTO 下发票(票号, 开关键, 版本键, 桶键, 状态, 下发时, 世代, 说明, 回读截止, 有效截止, 边缘名册)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?)
                ON CONFLICT(票号) DO UPDATE SET
-                 状态='已下发', 下发时=excluded.下发时, 世代=下发票.世代+1""",
-            (票号, ver["开关键"], 版本键, 桶键, "已下发", 此刻(), 1, 体.get("说明", "")),
+                 状态='已下发', 下发时=excluded.下发时, 世代=下发票.世代+1,
+                 回读截止=excluded.回读截止, 有效截止=excluded.有效截止,
+                 边缘名册=excluded.边缘名册""",
+            (
+                票号, ver["开关键"], 版本键, 桶键, "已下发", 此刻(), 1,
+                体.get("说明", ""), 回读截止, 回读截止,
+                json.dumps(名册, ensure_ascii=False),
+            ),
         )
         conn.execute(
             "UPDATE 开关版本 SET 状态='灰度中' WHERE 版本键=?", (版本键,)
         )
         conn.commit()
-        return {"票号": 票号, "状态": "已下发", "幂等": False}
+        return {"票号": 票号, "状态": "已下发", "幂等": False, "回读截止": 回读截止}
     finally:
         conn.close()
 

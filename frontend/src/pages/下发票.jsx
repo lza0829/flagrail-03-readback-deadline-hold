@@ -17,10 +17,11 @@ export default function 下发票() {
       {讯 && <p className="讯">{讯}</p>}
       {!rows.length ? <div className="空态">尚无下发票（需先入轨+分桶）</div> : (
         <table>
-          <thead><tr><th>票号</th><th>版本键</th><th>桶键</th><th>状态</th><th>下发时</th></tr></thead>
+          <thead><tr><th>票号</th><th>版本键</th><th>桶键</th><th>状态</th><th>下发时</th><th>回读截止</th><th>有效截止</th></tr></thead>
           <tbody>{rows.map((r) => (
             <tr key={r.票号}><td>{r.票号}</td><td>{r.版本键}</td><td>{r.桶键}</td>
-            <td><span className="徽章 通">{r.状态}</span></td><td>{r.下发时}</td></tr>
+            <td><span className="徽章 通">{r.状态}</span></td><td>{r.下发时}</td>
+            <td>{r.回读截止 || "—"}</td><td>{r.有效截止 || "—"}</td></tr>
           ))}</tbody>
         </table>
       )}

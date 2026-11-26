@@ -12,6 +12,8 @@ def 总览() -> dict:
             "分桶规": c("SELECT COUNT(*) FROM 分桶规 WHERE 状态='生效'"),
             "下发票": c("SELECT COUNT(*) FROM 下发票"),
             "已下发": c("SELECT COUNT(*) FROM 下发票 WHERE 状态='已下发'"),
+            "超时收口": c("SELECT COUNT(*) FROM 下发票 WHERE 状态='超时收口'"),
+            "已晋升": c("SELECT COUNT(*) FROM 下发票 WHERE 状态='已晋升'"),
             "回读证": c("SELECT COUNT(*) FROM 回读证"),
             "确认回读": c("SELECT COUNT(*) FROM 回读证 WHERE 结果='确认'"),
             "命运条": c("SELECT COUNT(*) FROM 命运账"),

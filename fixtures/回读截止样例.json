@@ -1,0 +1,55 @@
+{
+  "类型": "截止演练",
+  "批次编号": "截止-demo",
+  "版本": [
+    {
+      "开关键": "checkout.new_tax",
+      "版本号": 4,
+      "版本键": "checkout.new_tax@4",
+      "载荷": { "enabled": true, "variant": "C" },
+      "说明": "截止收口演练版本"
+    }
+  ],
+  "分桶": [
+    {
+      "桶键": "checkout.new_tax-gray20",
+      "开关键": "checkout.new_tax",
+      "桶类型": "百分比",
+      "规则": { "percent": 20, "salt": "tax-v4" }
+    }
+  ],
+  "下发": [
+    {
+      "票号": "票-甲-checkout.new_tax@4-gray20",
+      "版本键": "checkout.new_tax@4",
+      "桶键": "checkout.new_tax-gray20",
+      "回读截止": "2099-01-01T00:00:00Z",
+      "边缘名册": ["edge-a", "edge-b"],
+      "说明": "甲：两边缘一确认，无书面延期，拨截止后应超时收口"
+    },
+    {
+      "票号": "票-乙-checkout.new_tax@4-gray20",
+      "版本键": "checkout.new_tax@4",
+      "桶键": "checkout.new_tax-gray20",
+      "回读截止": "2099-01-01T00:00:00Z",
+      "边缘名册": ["edge-c", "edge-d"],
+      "说明": "乙：两边缘一确认，有书面延期，拨截止后物化延期窗口"
+    }
+  ],
+  "回读": [
+    { "票号": "票-甲-checkout.new_tax@4-gray20", "边缘键": "edge-a", "结果": "确认", "说明": "甲：截止前先到一确认" },
+    { "票号": "票-乙-checkout.new_tax@4-gray20", "边缘键": "edge-c", "结果": "确认", "说明": "乙：截止前先到一确认" }
+  ],
+  "拨截止": {
+    "票号": ["票-甲-checkout.new_tax@4-gray20", "票-乙-checkout.new_tax@4-gray20"],
+    "到": "2020-01-01T00:00:00Z"
+  },
+  "延期": [
+    {
+      "票号": "票-乙-checkout.new_tax@4-gray20",
+      "延期截止": "2099-01-02T00:00:00Z",
+      "说明": "书面延期：乙窗口顺延一天"
+    }
+  ],
+  "扫描": true
+}
